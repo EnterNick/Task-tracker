@@ -1,21 +1,31 @@
 from django.shortcuts import redirect
-from rest_framework.renderers import TemplateHTMLRenderer
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
+from rest_framework.permissions import IsAuthenticated
 
+from .models import CustomUser
 from .serializers import UserSerializer
 
 
-class UserView(APIView):
-    renderer_classes = [TemplateHTMLRenderer]
-    template_name = 'task_traker/register.html'
+class UserView(ListCreateAPIView):
+    queryset = CustomUser.objects.all()
+    serializer_class = UserSerializer
 
-    def get(self, request):
-        return Response({'serializer': UserSerializer()})
 
-    def post(self, request):
-        serializer = UserSerializer(data=request.data)
-        if serializer.is_valid():
-            # serializer.save()
-            return redirect('/')
-        return Response({'serializer': UserSerializer(), 'errors': serializer.errors})
+    class ProfileView(RetrieveAPIView):
+    serializer_class = UserSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get_serializer(self, *args, **kwargs):
+        data = {
+            'first_name': self.request.user.first_name,
+            'last_name': self.request.user.last_name,
+            'email': self.request.user.email,
+            # 'avatar': self.request.user.avatar,
+            'role': self.request.user.role,
+        }
+        a = UserSerializer(data=data)
+        if a.is_valid():
+            return a
+        return a

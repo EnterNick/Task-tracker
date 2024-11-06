@@ -9,17 +9,37 @@ class Project(models.Model):
     description = models.CharField(max_length=1000)
     date_created = models.DateField(default=date.today)
     date_updated = models.DateField()
-    status = models.CharField(default='active', choices=[('archive', 'Заархивирован'), ('active', 'Активный')],
-                              max_length=100)
+    status = models.CharField(
+        default='active',
+        choices=[
+            ('archive', 'Заархивирован'),
+            ('active', 'Активный'),
+        ],
+        max_length=100,
+    )
 
     def __str__(self):
         return str(self.title)
 
 
+def to_img_path(user, filename):
+    return f'user_{user.id}/{filename}'
+
+
 class CustomUser(AbstractUser):
-    role = models.CharField(default='programmer', choices=[('programmer', 'Программист'), ('p m', 'Мэнеджер проекта')],
-                            max_length=100)
+    role = models.CharField(
+        default='programmer',
+        choices=[
+            ('programmer', 'Программист'),
+            ('project_manager', 'Мeнеджер проекта'),
+        ],
+        max_length=100,
+        blank=False,
+        null=False,
+    )
     projects = models.ManyToManyField(Project, through='Hiring')
+    avatar = models.ImageField(upload_to=to_img_path, default='profile.png')
+    REQUIRED_FIELDS = ['first_name', 'last_name']
 
     def __str__(self):
         return f'{self.username} - {self.role}'
