@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 class ProjectSerializer(serializers.ModelSerializer):
     tasks = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = [
@@ -31,6 +32,12 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_tasks(self, obj):
         return [str(i) for i in Task.objects.filter(project=obj) or ['нет текущих  заданий']]
 
+    def validate_title(self, attr):
+        if attr not in map(lambda x: x.title, Project.objects.all()):
+            return attr
+        raise ValidationError('Такое имя уже существует!')
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
@@ -48,7 +55,6 @@ class UserSerializer(serializers.ModelSerializer):
             'second_name',
         ]
 
-
     def save(self, **kwargs):
         return super().save(
             **kwargs,
@@ -63,10 +69,18 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
+    hyperlink = serializers.SerializerMethodField()
+
     class Meta:
         model = Task
         fields = [
             'title',
             'description',
             'project',
+            'hyperlink',
         ]
+
+
+class AuthSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(style={'type': 'password'})

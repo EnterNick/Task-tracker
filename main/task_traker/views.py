@@ -1,7 +1,12 @@
-from rest_framework.generics import ListCreateAPIView, RetrieveAPIView, ListAPIView, CreateAPIView
+from django.shortcuts import redirect
+from rest_framework.generics import ListCreateAPIView, RetrieveAPIView, DestroyAPIView
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.authentication import JWTStatelessUserAuthentication
 
 from .models import CustomUser, Project, Task
-from .serializers import UserSerializer, ProjectSerializer, TaskSerializer
+from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, AuthSerializer
 
 
 class UserView(ListCreateAPIView):
@@ -37,7 +42,35 @@ class ProjectView(ListCreateAPIView):
         queryset = super().get_queryset().filter(private=False)
         return queryset
 
+    def get(self, request, pk=None, **kwargs):
+        if pk is not None:
+            ser = ProjectSerializer(Project.objects.filter(pk=pk).first())
+            return Response(data=ser.data)
+        else:
+            return Response(data=[ProjectSerializer(i).data for i in self.get_queryset()])
 
-class TasksView(CreateAPIView):
+    def post(self, request, *args, **kwargs):
+        if 'pk' in kwargs:
+            ser = ProjectSerializer(data=request.data)
+            ser.is_valid(raise_exception=True)
+            ser.update(Project.objects.filter(pk=kwargs['pk']).first(), ser.validated_data)
+            return Response(data=['Проект обновлён успешно'], status=200)
+        else:
+            ser = ProjectSerializer(data=request.data)
+            ser.is_valid(raise_exception=True)
+            ser.save()
+            return Response(data=['Проект создан успешно'], status=200)
+
+
+class ProjectDelete(DestroyAPIView):
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+
+    def delete(self, request, *args, **kwargs):
+        print(request.data)
+        super().delete(request, *args, **kwargs)
+
+
+class TasksView(ListCreateAPIView):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
