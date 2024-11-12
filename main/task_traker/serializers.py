@@ -1,11 +1,13 @@
+import re
+
 from rest_framework.exceptions import ValidationError
 
-from .models import CustomUser, Project, Task
+from .models import CustomUser, Project, Task, Hiring
 from rest_framework import serializers
 
 
 class ProjectSerializer(serializers.ModelSerializer):
-    tasks = serializers.SerializerMethodField()
+    tasks = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Project
@@ -22,23 +24,18 @@ class ProjectSerializer(serializers.ModelSerializer):
             'date_created',
             'date_updated',
         ]
+        extra_kwargs = {
+            'private': {'write_only': True},
+        }
 
-    def get_fields(self):
-        fields = super().get_fields()
-        fields['tasks'].read_only = True
-        fields['private'].write_only = True
-        return fields
-
-    def get_tasks(self, obj):
-        return [str(i) for i in Task.objects.filter(project=obj) or ['нет текущих  заданий']]
-
-    def validate_title(self, attr):
-        if attr not in map(lambda x: x.title, Project.objects.all()):
-            return attr
-        raise ValidationError('Такое имя уже существует!')
+    @staticmethod
+    def get_tasks(obj):
+        return [i.title for i in Task.objects.filter(project=obj)] or ['нет текущих  заданий']
 
 
 class UserSerializer(serializers.ModelSerializer):
+    projects = serializers.SerializerMethodField()
+
     class Meta:
         model = CustomUser
         fields = [
@@ -48,18 +45,26 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'password',
             'email',
+            'projects',
         ]
         required_fields = [
             'email',
             'first_name',
             'second_name',
         ]
+        extra_kwargs = {
+            'password': {'write_only': True},
+        }
 
     def save(self, **kwargs):
         return super().save(
             **kwargs,
             username=self.validated_data['email'],
         )
+
+    @staticmethod
+    def get_projects(obj):
+        return [i.title for i in Project.objects.filter(customuser=obj)][:10]
 
     @staticmethod
     def validate_email(attr):
@@ -69,7 +74,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    hyperlink = serializers.SerializerMethodField()
+    url = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -77,8 +82,15 @@ class TaskSerializer(serializers.ModelSerializer):
             'title',
             'description',
             'project',
-            'hyperlink',
+            'url',
         ]
+
+    def get_url(self, obj):
+        return re.sub(
+            r'tasks/\d+',
+            'projects/' + str(obj.project.id),
+            self.context['request'].build_absolute_uri()
+        )
 
 
 class AuthSerializer(serializers.Serializer):

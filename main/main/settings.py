@@ -125,11 +125,12 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST_FRAMEWORK = {
+REST_FRAMEWORK = {
 #     'DEFAULT_AUTHENTICATION_CLASSES': [
 #         'rest_framework_simplejwt.authentication.JWTAuthentication',
 #     ],
-# }
+    'DATETIME_FORMAT': "%Y-%m-%d %H:%M",
+}
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),

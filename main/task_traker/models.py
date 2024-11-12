@@ -8,7 +8,7 @@ class Project(models.Model):
     title = models.CharField(max_length=100)
     description = models.CharField(max_length=1000)
     date_created = models.DateField(default=date.today)
-    date_updated = models.DateField(default=date.today)
+    date_updated = models.DateTimeField(default=date.today)
     private = models.BooleanField(default=False)
     status = models.CharField(
         default='active',
@@ -44,11 +44,11 @@ class CustomUser(AbstractUser):
     )
     avatar = models.ImageField(
         upload_to=to_img_path,
-        default='profile.png'
+        default='profile.png',
     )
     REQUIRED_FIELDS = [
         'first_name',
-        'last_name'
+        'last_name',
     ]
 
     def __str__(self):
@@ -56,8 +56,14 @@ class CustomUser(AbstractUser):
 
 
 class Hiring(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE
+    )
     role_in_project = models.CharField(
         default='programmer',
         max_length=100
@@ -70,7 +76,6 @@ class Task(models.Model):
     project = models.ForeignKey(
         Project,
         on_delete=models.CASCADE
-
     )
 
     def __str__(self):
