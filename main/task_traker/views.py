@@ -6,8 +6,8 @@ from rest_framework.generics import ListCreateAPIView, RetrieveAPIView, DestroyA
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import CustomUser, Project, Task
-from .serializers import UserSerializer, ProjectSerializer, TaskSerializer
+from .models import CustomUser, Project, Task, Hiring
+from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer
 
 
 class UserView(ListCreateAPIView):
@@ -15,13 +15,20 @@ class UserView(ListCreateAPIView):
     serializer_class = UserSerializer
 
 
-class UserProfileView(RetrieveAPIView):
+class UserProfileView(ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     queryset = CustomUser.objects.all()
 
     def get_object(self):
         return self.request.user
+
+    def get(self, request, pk=None, **kwargs):
+        if pk is not None:
+            user = self.queryset.filter(pk=pk).first()
+            return Response(data=self.get_serializer(user).data)
+        else:
+            return Response(data=[self.get_serializer(user).data for user in self.get_queryset()])
 
 
 class ProjectView(ListAPIView):
@@ -34,10 +41,10 @@ class ProjectView(ListAPIView):
 
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
-            ser = ProjectSerializer(Project.objects.filter(pk=pk).first())
+            ser = self.get_serializer(Project.objects.filter(pk=pk).first(), context={'request': request})
             return Response(data=ser.data)
         else:
-            return Response(data=[ProjectSerializer(i).data for i in self.get_queryset()])
+            return Response(data=[self.get_serializer(i, context={'request': request}).data for i in self.get_queryset()])
 
 
 class AddProjectView(CreateAPIView):
@@ -45,7 +52,7 @@ class AddProjectView(CreateAPIView):
     serializer_class = ProjectSerializer
 
     def post(self, request, *args, **kwargs):
-        ser = ProjectSerializer(data=request.data)
+        ser = self.get_serializer(data=request.data, context={'user': self.request.user})
         ser.is_valid(raise_exception=True)
         if ser.validated_data['title'] in [i.title for i in self.queryset.all()]:
             raise ValidationError('Такое имя уже существует')
@@ -59,21 +66,27 @@ class UpdateProjectView(UpdateAPIView):
 
     def get(self, request, pk):
         return Response(
-            data=ProjectSerializer(
+            data=self.get_serializer(
                 self.queryset.filter(
-                    pk=pk
-                ).first()
-            ).data
+                    pk=pk,
+                ).first(),
+                context={'request': request},
+            ).data,
         )
 
     def put(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={'request': request},
+        )
         if serializer.is_valid():
             instance = Project.objects.filter(pk=kwargs['pk']).first()
             instance.date_updated = datetime.today().strftime('%Y-%m-%d %H:%M')
-            serializer.update(instance, serializer.validated_data)
+            serializer.update(
+                instance,
+                serializer.validated_data
+            )
             return Response(data=['Проект обновлён успешно'], status=200)
-        print(serializer.errors)
         return Response(data=['Введённые данные некорректны'], status=400)
 
 
@@ -86,15 +99,12 @@ class TasksView(ListAPIView):
     serializer_class = TaskSerializer
     queryset = Task.objects.all()
 
-    def get_serializer_class(self):
-        return self.serializer_class
-
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
-            ser = self.serializer_class(self.queryset.filter(pk=pk).first(), context={'request': request})
+            ser = self.get_serializer(self.queryset.filter(pk=pk).first(), context={'request': request})
             return Response(data=ser.data)
         else:
-            return Response(data=[self.serializer_class(i, context={'request': request}).data for i in self.get_queryset()])
+            return Response(data=[self.get_serializer(i, context={'request': request}).data for i in self.get_queryset()])
 
 
 class AddTaskView(CreateAPIView):
@@ -102,7 +112,7 @@ class AddTaskView(CreateAPIView):
     serializer_class = TaskSerializer
 
     def post(self, request, *args, **kwargs):
-        ser = TaskSerializer(data=request.data, context={'request': request})
+        ser = self.get_serializer(data=request.data, context={'request': request})
         ser.is_valid(raise_exception=True)
         ser.save()
         return Response(data=['Задача создана успешно'], status=200)
@@ -112,8 +122,18 @@ class UpdateTaskView(UpdateAPIView):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
 
+    def get(self, request, pk):
+        return Response(
+            data=self.get_serializer(
+                instance=self.queryset.filter(
+                    pk=pk,
+                ).first(),
+            context={'request': request},
+            ).data,
+        )
+
     def put(self, request, *args, **kwargs):
-        ser = TaskSerializer(data=request.data, context={'request': request})
+        ser = self.get_serializer(data={**request.data, 'date_updated': datetime.today().date()}, context={'request': request})
         ser.is_valid(raise_exception=True)
         ser.update(self.queryset.filter(pk=kwargs['pk']).first(), ser.validated_data)
         return Response(data=['Задача обновлена успешно'], status=200)
@@ -122,3 +142,19 @@ class UpdateTaskView(UpdateAPIView):
 class DeleteTaskView(DestroyAPIView):
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
+
+
+
+class RolesProjectView(UpdateAPIView):
+    queryset = Hiring.objects.all()
+    serializer_class = HiringSerializer
+
+    def get(self, request, pk):
+        instance = self.queryset.filter(
+                        project=Project.objects.filter(
+                            pk=pk
+                        ).first(),
+                    ).first()
+        data = self.get_serializer(instance).data
+        data['role_in_project'] = instance.user.role
+        return Response(data=data)

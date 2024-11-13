@@ -4,24 +4,6 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 
 
-class Project(models.Model):
-    title = models.CharField(max_length=100)
-    description = models.CharField(max_length=1000)
-    date_created = models.DateField(default=date.today)
-    date_updated = models.DateTimeField(default=date.today)
-    private = models.BooleanField(default=False)
-    status = models.CharField(
-        default='active',
-        choices=[
-            ('archive', 'Заархивирован'),
-            ('active', 'Активный'),
-        ],
-        max_length=100,
-    )
-
-    def __str__(self):
-        return str(self.title)
-
 
 def to_img_path(user, filename):
     return f'user_{user.id}/{filename}'
@@ -38,10 +20,6 @@ class CustomUser(AbstractUser):
         blank=False,
         null=False,
     )
-    projects = models.ManyToManyField(
-        Project,
-        through='Hiring'
-    )
     avatar = models.ImageField(
         upload_to=to_img_path,
         default='profile.png',
@@ -52,7 +30,30 @@ class CustomUser(AbstractUser):
     ]
 
     def __str__(self):
-        return f'{self.username} - {self.role}'
+        return f'{self.username}'
+
+
+class Project(models.Model):
+    title = models.CharField(max_length=100)
+    description = models.CharField(max_length=1000)
+    date_created = models.DateField(default=date.today)
+    date_updated = models.DateTimeField(default=date.today)
+    private = models.BooleanField(default=False)
+    users = models.ManyToManyField(
+        CustomUser,
+        through='Hiring'
+    )
+    status = models.CharField(
+        default='active',
+        choices=[
+            ('archive', 'Заархивирован'),
+            ('active', 'Активный'),
+        ],
+        max_length=100,
+    )
+
+    def __str__(self):
+        return str(self.title)
 
 
 class Hiring(models.Model):
@@ -75,7 +76,25 @@ class Task(models.Model):
     description = models.CharField(max_length=1000)
     project = models.ForeignKey(
         Project,
-        on_delete=models.CASCADE
+        on_delete=models.CASCADE,
+    )
+    executor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        null=True,
+        name='executor',
+    )
+    date_created = models.DateField(default=date.today)
+    date_updated = models.DateTimeField(default=date.today)
+    status = models.CharField(
+        default='grooming',
+        choices=[
+            ('grooming', 'Grooming'),
+            ('in_progress', 'In Progress'),
+            ('dev', 'Dev'),
+            ('done', 'Done'),
+        ],
+        max_length=100,
     )
 
     def __str__(self):
