@@ -122,7 +122,7 @@ class AuthSerializer(serializers.Serializer):
 
 class HiringSerializer(serializers.ModelSerializer):
     project = serializers.HyperlinkedRelatedField(view_name='projects', read_only=True)
-    user = serializers.HyperlinkedRelatedField(view_name='users', read_only=True)
+    user = serializers.HyperlinkedRelatedField(view_name='users', queryset=CustomUser.objects.filter(is_staff=False))
 
     class Meta:
         model = Hiring
@@ -132,6 +132,15 @@ class HiringSerializer(serializers.ModelSerializer):
             'role_in_project',
         ]
         read_only_fields = [
-            'user',
             'project',
         ]
+
+    def get_fields(self):
+        fields = super().get_fields()
+        pk = self.context['request'].__dict__['parser_context']['kwargs']['pk']
+        fields['user'].queryset = fields['user'].queryset.filter(
+            project=Project.objects.filter(
+                pk=pk,
+            ).first(),
+        )
+        return fields

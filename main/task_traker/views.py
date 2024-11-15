@@ -1,5 +1,7 @@
+from dataclasses import fields
 from datetime import datetime
 
+from django.urls import include
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListCreateAPIView, RetrieveAPIView, DestroyAPIView, CreateAPIView, ListAPIView, \
     UpdateAPIView
@@ -150,11 +152,23 @@ class RolesProjectView(UpdateAPIView):
     serializer_class = HiringSerializer
 
     def get(self, request, pk):
+        project_instance = Project.objects.filter(pk=pk).first()
         instance = self.queryset.filter(
-                        project=Project.objects.filter(
-                            pk=pk
-                        ).first(),
+                        project=project_instance,
                     ).first()
-        data = self.get_serializer(instance).data
-        data['role_in_project'] = instance.user.role
+        serializer = self.get_serializer(instance, context={'request': request})
+        data = serializer.data
+        data['role_in_project'] = self.queryset.filter(user=instance.user, project=project_instance).first().role_in_project
         return Response(data=data)
+
+    def put(self, request, *args, **kwargs):
+        data = {
+            'user': request.data['user'],
+            'role_in_project': request.data['role_in_project'],
+        }
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            hiring = self.queryset.filter(project=Project.objects.filter(pk=kwargs['pk']).first(), user=serializer.validated_data['user']).first()
+            serializer.update(hiring, serializer.validated_data)
+            return Response(data=['Роль задана успешно!'])
+        return super().put(request, *args, **kwargs)
