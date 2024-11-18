@@ -73,7 +73,7 @@ class AddProjectView(CreateAPIView):
         if self.queryset.filter(title=ser.validated_data['title']):
             raise ValidationError('Такое имя уже существует')
         ser.save()
-        return Response(data=['Проект создан успешно'], status=200)
+        return Response(data={'Проект создан успешно'}, status=200)
 
 
 class UpdateProjectView(UpdateAPIView):

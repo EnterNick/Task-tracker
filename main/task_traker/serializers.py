@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password
 from rest_framework.exceptions import ValidationError
 
 from .models import CustomUser, Project, Task, Hiring
@@ -5,6 +6,7 @@ from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
+    projects_history = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = CustomUser
@@ -15,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'password',
             'email',
+            'projects_history',
         ]
         required_fields = [
             'first_name',
@@ -34,6 +37,10 @@ class UserSerializer(serializers.ModelSerializer):
             username=self.validated_data['email'],
         )
 
+    def get_projects_history(self, obj):
+        print()
+        return {i.project.title: i.role_in_project for i in Hiring.objects.filter(user_id=obj.id)}
+
     @staticmethod
     def get_projects(obj):
         return [i.title for i in Project.objects.filter(customuser=obj, status='active')][:10]
@@ -44,13 +51,19 @@ class UserSerializer(serializers.ModelSerializer):
             return attr
         raise ValidationError('User is already exists! Please, try log in.')
 
+    @staticmethod
+    def validate_password(value: str) -> str:
+        if not value or value is None:
+            raise ValidationError('Password is required!')
+        return make_password(value)
+
 
 class ProjectSerializer(serializers.ModelSerializer):
     tasks = serializers.SerializerMethodField(read_only=True)
     users = serializers.SlugRelatedField(
         queryset=CustomUser.objects.filter(is_staff=False),
         many=True,
-        slug_field='first_name',
+        slug_field='email',
         write_only=True
     )
     user_roles = serializers.SerializerMethodField(read_only=True)
@@ -90,7 +103,11 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_user_roles(obj):
-        return [f'{i.user.first_name} - {i.role_in_project}' for i in Hiring.objects.filter(project=obj)]
+        return [
+            f'{i.user.first_name} - {i.user.email} - {i.role_in_project}' for i in Hiring.objects.filter(
+                project=obj,
+            )
+        ]
 
 
 class TaskSerializer(serializers.ModelSerializer):
