@@ -1,8 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
-
 
 
 def to_img_path(user, filename):
@@ -37,7 +36,7 @@ class Project(models.Model):
     title = models.CharField(max_length=100)
     description = models.CharField(max_length=1000)
     date_created = models.DateField(default=date.today)
-    date_updated = models.DateTimeField(default=date.today)
+    date_updated = models.DateTimeField(default=datetime.today)
     private = models.BooleanField(default=False)
     users = models.ManyToManyField(
         CustomUser,
@@ -85,7 +84,7 @@ class Task(models.Model):
         name='executor',
     )
     date_created = models.DateField(default=date.today)
-    date_updated = models.DateTimeField(default=date.today)
+    date_updated = models.DateTimeField(default=datetime.today)
     status = models.CharField(
         default='grooming',
         choices=[

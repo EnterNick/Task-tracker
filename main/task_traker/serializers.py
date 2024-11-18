@@ -1,5 +1,3 @@
-import re
-
 from rest_framework.exceptions import ValidationError
 
 from .models import CustomUser, Project, Task, Hiring
@@ -19,6 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
             'email',
         ]
         required_fields = [
+            'first_name',
             'email',
             'first_name',
             'second_name',
@@ -52,7 +51,9 @@ class ProjectSerializer(serializers.ModelSerializer):
         queryset=CustomUser.objects.filter(is_staff=False),
         many=True,
         slug_field='first_name',
+        write_only=True
     )
+    user_roles = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Project
@@ -65,6 +66,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             'private',
             'tasks',
             'users',
+            'user_roles'
         ]
         read_only_fields = [
             'date_created',
@@ -76,7 +78,6 @@ class ProjectSerializer(serializers.ModelSerializer):
             },
         }
 
-
     def get_tasks(self, obj):
         return [
             TaskSerializer(
@@ -87,10 +88,19 @@ class ProjectSerializer(serializers.ModelSerializer):
             )
         ] or ['нет текущих  заданий']
 
+    @staticmethod
+    def get_user_roles(obj):
+        return [f'{i.user.first_name} - {i.role_in_project}' for i in Hiring.objects.filter(project=obj)]
+
 
 class TaskSerializer(serializers.ModelSerializer):
     project = serializers.HyperlinkedRelatedField(view_name='projects', queryset=Project.objects.all())
-    executor = serializers.HyperlinkedRelatedField(view_name='users', queryset=CustomUser.objects.all())
+    executor = serializers.HyperlinkedRelatedField(
+        view_name='users',
+        queryset=CustomUser.objects.filter(
+            is_staff=False,
+        )
+    )
 
     class Meta:
         model = Task
@@ -106,6 +116,9 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'date_created',
             'date_updated',
+        ]
+        required_fields = [
+            'project',
         ]
 
     def validate_executor(self, attr):
