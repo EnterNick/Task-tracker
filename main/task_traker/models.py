@@ -8,6 +8,10 @@ def to_img_path(user, filename):
     return f'user_{user.id}/{filename}'
 
 
+def deafult_history():
+    return '[]'
+
+
 class CustomUser(AbstractUser):
     role = models.CharField(
         default='programmer',
@@ -23,7 +27,8 @@ class CustomUser(AbstractUser):
         upload_to=to_img_path,
         default='profile.png',
     )
-    history = models.JSONField(default= '[]')
+
+    history = models.JSONField(default=deafult_history)
     REQUIRED_FIELDS = [
         'first_name',
         'last_name',
@@ -106,6 +111,7 @@ class Task(models.Model):
         max_length=100,
     )
     deadline = models.DateTimeField(default=datetime.datetime.today)
+    tester = models.CharField(max_length=1000)
 
     def __str__(self):
         return f'{self.title} - {self.description}'

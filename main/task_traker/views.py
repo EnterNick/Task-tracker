@@ -6,9 +6,10 @@ from rest_framework.generics import ListCreateAPIView, DestroyAPIView, CreateAPI
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import CustomUser, Project, Task, Hiring, Comment
-from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer, SortProjectsSerializer, \
-    FilterProjectsTasksSerializer, CommentSerializer, FilterTasksSerializer
+from .models import Comment
+from .models import CustomUser, Project, Task, Hiring
+from .serializers import SortProjectsSerializer, FilterProjectsTasksSerializer, CommentSerializer, FilterTasksSerializer
+from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer
 
 
 class UserView(ListCreateAPIView):
@@ -43,7 +44,7 @@ class ProjectView(ListAPIView):
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
             ser = ProjectSerializer(
-               self.queryset.filter(
+                self.queryset.filter(
                     pk=pk,
                 ).first(),
                 context={
@@ -123,7 +124,8 @@ class TaskProjectView(ListAPIView):
 
     def get_data(self, request, pk):
         instance = Project.objects.filter(pk=pk).first()
-        data = [TaskSerializer(i, context={'request': request}).data for i in self.queryset.filter(project_id=instance.id)]
+        data = [TaskSerializer(i, context={'request': request}).data for i in
+                self.queryset.filter(project_id=instance.id)]
         return data
 
     def get(self, request, *args, **kwargs):
@@ -146,12 +148,10 @@ class TasksView(ListAPIView):
         return self.get_data(request, pk)
 
     def post(self, request, pk=None):
-        data = {i: request.data[i] for i in request.data if request.data[i] != 'None' and i not in ['csrfmiddlewaretoken', 'sort_by', 'deadline']}
+        data = {i: request.data[i] for i in request.data if
+                request.data[i] != 'None' and i not in ['csrfmiddlewaretoken', 'sort_by', 'deadline']}
         self.queryset = self.queryset.filter(**data)
         self.queryset = self.queryset.order_by(request.data['sort_by'])
-        serializer = FilterProjectsTasksSerializer(data=data)
-        # serializer.is_valid(raise_exception=True)
-        # self.queryset = self.queryset.filter(deadline__range=(datetime(day=1, month=1, year=2000), serializer.validated_data['deadline']))
         return self.get_data(request, pk)
 
     def get_data(self, request, pk=None):
@@ -192,12 +192,13 @@ class UpdateTaskView(UpdateAPIView):
                 instance=self.queryset.filter(
                     pk=pk,
                 ).first(),
-            context={'request': request},
+                context={'request': request},
             ).data,
         )
 
     def put(self, request, *args, **kwargs):
-        ser = self.get_serializer(data={**request.data, 'date_updated': datetime.today().date()}, context={'request': request})
+        ser = self.get_serializer(data={**request.data, 'date_updated': datetime.today().date()},
+                                  context={'request': request})
         ser.is_valid(raise_exception=True)
         ser.update(self.queryset.filter(pk=kwargs['pk']).first(), ser.validated_data)
         return Response(data=['Задача обновлена успешно'], status=200)
@@ -215,8 +216,8 @@ class RolesProjectView(UpdateAPIView):
     def get(self, request, pk):
         project_instance = Project.objects.filter(pk=pk).first()
         instance = self.queryset.filter(
-                        project=project_instance,
-                    ).first()
+            project=project_instance,
+        ).first()
         serializer = self.get_serializer(instance, context={'request': request})
         data = serializer.data
         if not data['role_in_project']:
