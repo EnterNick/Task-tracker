@@ -6,8 +6,9 @@ from rest_framework.generics import ListCreateAPIView, DestroyAPIView, CreateAPI
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import CustomUser, Project, Task, Hiring
-from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer
+from .models import CustomUser, Project, Task, Hiring, Comment
+from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer, SortProjectsSerializer, \
+    FilterProjectsTasksSerializer, CommentSerializer, FilterTasksSerializer
 
 
 class UserView(ListCreateAPIView):
@@ -33,16 +34,16 @@ class UserProfileView(ListAPIView):
 
 class ProjectView(ListAPIView):
     queryset = Project.objects.all()
-    serializer_class = ProjectSerializer
+    serializer_class = SortProjectsSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(private=False)
+        queryset = self.queryset.filter(private=False)
         return queryset
 
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
-            ser = self.get_serializer(
-                Project.objects.filter(
+            ser = ProjectSerializer(
+               self.queryset.filter(
                     pk=pk,
                 ).first(),
                 context={
@@ -53,7 +54,7 @@ class ProjectView(ListAPIView):
         else:
             return Response(
                 data=[
-                    self.get_serializer(
+                    ProjectSerializer(
                         i,
                         context={
                             'request': request,
@@ -61,6 +62,10 @@ class ProjectView(ListAPIView):
                     ).data for i in self.get_queryset()
                 ]
             )
+
+    def post(self, request):
+        self.queryset = self.queryset.order_by(request.data['order_by'])
+        return self.get(request)
 
 
 class AddProjectView(CreateAPIView):
@@ -71,6 +76,7 @@ class AddProjectView(CreateAPIView):
         ser = self.get_serializer(data=request.data, context={'user': self.request.user})
         ser.is_valid(raise_exception=True)
         if self.queryset.filter(title=ser.validated_data['title']):
+            self.request.user.history.add()
             raise ValidationError('Такое имя уже существует')
         ser.save()
         return Response(data={'Проект создан успешно'}, status=200)
@@ -111,18 +117,51 @@ class DeleteProjectView(DestroyAPIView):
     serializer_class = ProjectSerializer
 
 
+class TaskProjectView(ListAPIView):
+    queryset = Task.objects.all()
+    serializer_class = FilterProjectsTasksSerializer
+
+    def get_data(self, request, pk):
+        instance = Project.objects.filter(pk=pk).first()
+        data = [TaskSerializer(i, context={'request': request}).data for i in self.queryset.filter(project_id=instance.id)]
+        return data
+
+    def get(self, request, *args, **kwargs):
+        self.queryset = Task.objects.filter(project_id=kwargs['pk'])
+        return Response(data=self.get_data(request, kwargs['pk']))
+
+    def post(self, request, pk):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.queryset = self.queryset.filter(deadline__range=(datetime.today(), serializer.validated_data['deadline']))
+        return Response(data=self.get_data(request, pk))
+
+
 class TasksView(ListAPIView):
-    serializer_class = TaskSerializer
+    serializer_class = FilterTasksSerializer
     queryset = Task.objects.all()
 
     def get(self, request, pk=None, **kwargs):
+        self.queryset = Task.objects.all()
+        return self.get_data(request, pk)
+
+    def post(self, request, pk=None):
+        data = {i: request.data[i] for i in request.data if request.data[i] != 'None' and i not in ['csrfmiddlewaretoken', 'sort_by', 'deadline']}
+        self.queryset = self.queryset.filter(**data)
+        self.queryset = self.queryset.order_by(request.data['sort_by'])
+        serializer = FilterProjectsTasksSerializer(data=data)
+        # serializer.is_valid(raise_exception=True)
+        # self.queryset = self.queryset.filter(deadline__range=(datetime(day=1, month=1, year=2000), serializer.validated_data['deadline']))
+        return self.get_data(request, pk)
+
+    def get_data(self, request, pk=None):
         if pk is not None:
-            ser = self.get_serializer(self.queryset.filter(pk=pk).first(), context={'request': request})
-            return Response(data=ser.data)
+            serializer = TaskSerializer(self.queryset.filter(pk=pk).first(), context={'request': request})
+            return Response(data=serializer.data)
         else:
             return Response(
                 data=[
-                    self.get_serializer(
+                    TaskSerializer(
                         i,
                         context={
                             'request': request,
@@ -203,3 +242,29 @@ class RolesProjectView(UpdateAPIView):
             serializer.update(hiring, serializer.validated_data)
             return Response(data=['Роль задана успешно!'])
         return super().put(request, *args, **kwargs)
+
+
+class CommentsView(ListCreateAPIView):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+
+    def get(self, request, *args, **kwargs):
+        return Response([i.text for i in self.queryset.filter(task_id=kwargs['task_id'])])
+
+    def post(self, request, *args, **kwargs):
+        data = {'text': request.data['text'], 'task': kwargs['task_id']}
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(['Комментарий добавлен!'])
+        return Response(data=serializer.errors)
+
+
+class DeleteCommentsView(DestroyAPIView):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer
+
+
+class UpdateCommentsView(UpdateAPIView):
+    queryset = Comment.objects.all()
+    serializer_class = CommentSerializer

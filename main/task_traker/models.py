@@ -1,4 +1,4 @@
-from datetime import date, datetime
+import datetime
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
@@ -23,6 +23,7 @@ class CustomUser(AbstractUser):
         upload_to=to_img_path,
         default='profile.png',
     )
+    history = models.JSONField(default= '[]')
     REQUIRED_FIELDS = [
         'first_name',
         'last_name',
@@ -35,8 +36,8 @@ class CustomUser(AbstractUser):
 class Project(models.Model):
     title = models.CharField(max_length=100)
     description = models.CharField(max_length=1000)
-    date_created = models.DateField(default=date.today)
-    date_updated = models.DateTimeField(default=datetime.today)
+    date_created = models.DateField(default=datetime.date.today)
+    date_updated = models.DateTimeField(default=datetime.datetime.today)
     private = models.BooleanField(default=False)
     users = models.ManyToManyField(
         CustomUser,
@@ -83,8 +84,8 @@ class Task(models.Model):
         null=True,
         name='executor',
     )
-    date_created = models.DateField(default=date.today)
-    date_updated = models.DateTimeField(default=datetime.today)
+    date_created = models.DateField(default=datetime.date.today)
+    date_updated = models.DateTimeField(default=datetime.datetime.today)
     status = models.CharField(
         default='grooming',
         choices=[
@@ -95,6 +96,21 @@ class Task(models.Model):
         ],
         max_length=100,
     )
+    priority = models.CharField(
+        default='0',
+        choices=[
+            (0, 'Низкий'),
+            (1, 'Средний'),
+            (2, 'Высокий'),
+        ],
+        max_length=100,
+    )
+    deadline = models.DateTimeField(default=datetime.datetime.today)
 
     def __str__(self):
         return f'{self.title} - {self.description}'
+
+
+class Comment(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE)
+    text = models.CharField(max_length=500)

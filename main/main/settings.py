@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 
+from tutorial.settings import BASE_DIR
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -77,14 +79,18 @@ WSGI_APPLICATION = 'main.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        "PASSWORD": "7753191hD$",
-        "HOST": "localhost",
-        "PORT": "5432",
-        "USER": "postgres"
-    }
+    'default':
+    #     'ENGINE': 'django.db.backends.postgresql',
+    #     'NAME': 'postgres',
+    #     "PASSWORD": "7753191hD$",
+    #     "HOST": "localhost",
+    #     "PORT": "5432",
+    #     "USER": "postgres"
+    # }
+        {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
 }
 
 

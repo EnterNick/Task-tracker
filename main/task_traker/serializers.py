@@ -1,12 +1,19 @@
+import json
+from dataclasses import fields
+from datetime import datetime
+from plistlib import dumps
+
 from django.contrib.auth.hashers import make_password
+from django.template.context_processors import request
 from rest_framework.exceptions import ValidationError
 
-from .models import CustomUser, Project, Task, Hiring
+from .models import CustomUser, Project, Task, Hiring, Comment
 from rest_framework import serializers
 
 
 class UserSerializer(serializers.ModelSerializer):
-    projects_history = serializers.SerializerMethodField(read_only=True)
+    projects = serializers.SerializerMethodField(read_only=True)
+    history = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = CustomUser
@@ -17,7 +24,8 @@ class UserSerializer(serializers.ModelSerializer):
             'role',
             'password',
             'email',
-            'projects_history',
+            'projects',
+            'history',
         ]
         required_fields = [
             'first_name',
@@ -37,13 +45,10 @@ class UserSerializer(serializers.ModelSerializer):
             username=self.validated_data['email'],
         )
 
-    def get_projects_history(self, obj):
-        print()
+    def get_history(self, obj):
+        return json.loads(obj.history)
+    def get_projects(self, obj):
         return {i.project.title: i.role_in_project for i in Hiring.objects.filter(user_id=obj.id)}
-
-    @staticmethod
-    def get_projects(obj):
-        return [i.title for i in Project.objects.filter(customuser=obj, status='active')][:10]
 
     @staticmethod
     def validate_email(attr):
@@ -109,6 +114,12 @@ class ProjectSerializer(serializers.ModelSerializer):
             )
         ]
 
+    def update(self, instance, validated_data):
+        for i in validated_data['users']:
+            i.history = json.dumps([*json.loads(i.history), instance.title])
+            i.save()
+        return super().update(instance, validated_data)
+
 
 class TaskSerializer(serializers.ModelSerializer):
     project = serializers.HyperlinkedRelatedField(view_name='projects', queryset=Project.objects.all())
@@ -129,6 +140,8 @@ class TaskSerializer(serializers.ModelSerializer):
             'date_created',
             'date_updated',
             'status',
+            'priority',
+            'deadline'
         ]
         read_only_fields = [
             'date_created',
@@ -136,18 +149,19 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
         required_fields = [
             'project',
+            'deadline',
         ]
+
+    def validate_title(self, attr):
+        if Task.objects.filter(title=attr, project_id=self.context['request'].data['project'].split('/')[-1]):
+            raise ValidationError('Здача с таким названием уже существует')
+        return attr
 
     def validate_executor(self, attr):
         executor = CustomUser.objects.filter(pk=int(self.context['request'].data['executor'].split('/')[-1])).first()
         if executor in Project.objects.first().users.all():
             return attr
         raise ValidationError('Этот пользователь не включён в проект')
-
-
-class AuthSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(style={'type': 'password'})
 
 
 class HiringSerializer(serializers.ModelSerializer):
@@ -174,3 +188,75 @@ class HiringSerializer(serializers.ModelSerializer):
             ).first(),
         )
         return fields
+
+
+class SortProjectsSerializer(serializers.Serializer):
+    order_by = serializers.ChoiceField(
+        choices=[
+            ('-date_created', 'По дате создания'),
+            ('date_created', 'По дате cоздания (от старых к новым)'),
+            ('-date_updated', 'По дате обновления'),
+            ('date_updated', 'По дaте обновления (от старых к новым)'),
+            ('-title', 'По названию (От А до Я)'),
+            ('title', 'По названию (От Я до А)'),
+        ],
+    )
+
+
+class FilterTasksSerializer(serializers.Serializer):
+    deadline = serializers.DateTimeField(default=datetime(day=1, month=1, year=2000))
+    priority = serializers.ChoiceField(
+        choices=[
+            (None, 'Any'),
+            (0, 'Низкий приоритет'),
+            (1, 'Средний приоритет'),
+            (2, 'Высокий приоритет'),
+        ]
+    )
+    status = serializers.ChoiceField(
+        choices=[
+            (None, 'Any'),
+            ('grooming', 'Grooming'),
+            ('in_progress', 'In Progress'),
+            ('dev', 'Dev'),
+            ('done', 'Done'),
+        ]
+    )
+    executor_id = serializers.ChoiceField(
+        choices=[
+            (None, 'Any'),
+            *[(i.id, i.email) for i in CustomUser.objects.filter(is_staff=False)],
+        ]
+    )
+    sort_by = serializers.ChoiceField(
+        choices=[
+            ('-date_created', 'По дате создания'),
+            ('date_created', 'По дате cоздания (от старых к новым)'),
+            ('-date_updated', 'По дате обновления'),
+            ('date_updated', 'По дaте обновления (от старых к новым)'),
+            ('-deadline', 'По дате выполнения'),
+            ('deadline', 'По дaте выполнения (от старых к новым)'),
+            ('-title', 'По названию (От А до Я)'),
+            ('title', 'По названию (От Я до А)'),
+        ],
+    )
+
+
+class FilterProjectsTasksSerializer(serializers.Serializer):
+    deadline = serializers.DateTimeField(default=datetime.today)
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = [
+            'task',
+            'text',
+        ]
+        read_only_fields = [
+            'task',
+        ]
+
+    def save(self, **kwargs):
+        pk = self.context['request'].__dict__['parser_context']['kwargs']['task_id']
+        return super().save(task=Task.objects.filter(pk=pk).first())
