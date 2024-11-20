@@ -151,3 +151,10 @@ AUTH_USER_MODEL = 'task_traker.CustomUser'
 MEDIA_URL = 'v1/media/'
 
 MEDIA_ROOT = BASE_DIR / 'task_traker/media/'
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_HOST_USER = 'mirgaazovravil4@gmail.com'
+EMAIL_HOST_PASSWORD = 'efhn ooxc nblg tcwb'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True

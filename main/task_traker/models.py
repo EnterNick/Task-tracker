@@ -13,16 +13,6 @@ def deafult_history():
 
 
 class CustomUser(AbstractUser):
-    role = models.CharField(
-        default='programmer',
-        choices=[
-            ('programmer', 'Программист'),
-            ('project_manager', 'Мeнеджер проекта'),
-        ],
-        max_length=100,
-        blank=False,
-        null=False,
-    )
     avatar = models.ImageField(
         upload_to=to_img_path,
         default='profile.png',
@@ -52,7 +42,7 @@ class Project(models.Model):
         default='active',
         choices=[
             ('archive', 'Заархивирован'),
-            ('active', 'Активный'),
+            ('active', ' Активный'),
         ],
         max_length=100,
     )
@@ -111,7 +101,7 @@ class Task(models.Model):
         max_length=100,
     )
     deadline = models.DateTimeField(default=datetime.datetime.today)
-    tester = models.CharField(max_length=1000)
+    tester = models.CharField(max_length=1000, null=True)
 
     def __str__(self):
         return f'{self.title} - {self.description}'

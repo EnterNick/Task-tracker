@@ -1,18 +1,30 @@
 from datetime import datetime
 
-from rest_framework.exceptions import ValidationError
-from rest_framework.generics import ListCreateAPIView, DestroyAPIView, CreateAPIView, ListAPIView, \
+from rest_framework.generics import (
+    ListCreateAPIView,
+    DestroyAPIView,
+    CreateAPIView,
+    ListAPIView,
     UpdateAPIView
+)
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Comment
 from .models import CustomUser, Project, Task, Hiring
-from .serializers import SortProjectsSerializer, FilterProjectsTasksSerializer, CommentSerializer, FilterTasksSerializer
-from .serializers import UserSerializer, ProjectSerializer, TaskSerializer, HiringSerializer
+from .serializers import (
+    SortProjectsSerializer,
+    FilterProjectsTasksSerializer,
+    CommentSerializer,
+    FilterTasksSerializer,
+    UserSerializer,
+    ProjectSerializer,
+    TaskSerializer,
+    HiringSerializer
+)
 
 
-class UserView(ListCreateAPIView):
+class UserView(CreateAPIView):
     queryset = CustomUser.objects.filter(is_staff=False)
     serializer_class = UserSerializer
 
@@ -28,9 +40,16 @@ class UserProfileView(ListAPIView):
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
             user = self.queryset.filter(pk=pk).first()
-            return Response(data=self.get_serializer(user).data)
+            return Response(data=[self.get_serializer(user).data], status=200)
         else:
-            return Response(data=[self.get_serializer(user).data for user in self.get_queryset()])
+            return Response(
+                data=[
+                    self.get_serializer(
+                        user
+                    ).data for user in self.get_queryset()
+                ],
+                status=200,
+            )
 
 
 class ProjectView(ListAPIView):
@@ -43,7 +62,7 @@ class ProjectView(ListAPIView):
 
     def get(self, request, pk=None, **kwargs):
         if pk is not None:
-            ser = ProjectSerializer(
+            serializer = ProjectSerializer(
                 self.queryset.filter(
                     pk=pk,
                 ).first(),
@@ -51,7 +70,7 @@ class ProjectView(ListAPIView):
                     'request': request,
                 },
             )
-            return Response(data=ser.data)
+            return Response(data=[serializer.data], status=200)
         else:
             return Response(
                 data=[
@@ -61,7 +80,8 @@ class ProjectView(ListAPIView):
                             'request': request,
                         },
                     ).data for i in self.get_queryset()
-                ]
+                ],
+                status=200,
             )
 
     def post(self, request):
@@ -74,13 +94,31 @@ class AddProjectView(CreateAPIView):
     serializer_class = ProjectSerializer
 
     def post(self, request, *args, **kwargs):
-        ser = self.get_serializer(data=request.data, context={'user': self.request.user})
-        ser.is_valid(raise_exception=True)
-        if self.queryset.filter(title=ser.validated_data['title']):
-            self.request.user.history.add()
-            raise ValidationError('Такое имя уже существует')
-        ser.save()
-        return Response(data={'Проект создан успешно'}, status=200)
+        print(request.data)
+        serializer = self.get_serializer(
+            data=request.data,
+            context={
+                'user': self.request.user,
+            },
+        )
+        if not serializer.is_valid():
+            return Response(
+                data=[
+                    {
+                        'errors': serializer.errors,
+                    },
+                ],
+                status=400,
+            )
+        if self.queryset.filter(title=serializer.validated_data['title']):
+            return Response(
+                data=[
+                    {'error': 'Такое имя уже существует'},
+                ],
+                status=400,
+            )
+        serializer.save()
+        return Response(data=[{'message': 'Проект создан успешно'}], status=200)
 
 
 class UpdateProjectView(UpdateAPIView):
@@ -89,12 +127,17 @@ class UpdateProjectView(UpdateAPIView):
 
     def get(self, request, pk):
         return Response(
-            data=self.get_serializer(
-                self.queryset.filter(
-                    pk=pk,
-                ).first(),
-                context={'request': request},
-            ).data,
+            data=[
+                self.get_serializer(
+                    self.queryset.filter(
+                        pk=pk,
+                    ).first(),
+                    context={
+                        'request': request,
+                    },
+                ).data,
+            ],
+            status=200,
         )
 
     def put(self, request, *args, **kwargs):
@@ -107,10 +150,10 @@ class UpdateProjectView(UpdateAPIView):
             instance.date_updated = datetime.today().strftime('%Y-%m-%d %H:%M')
             serializer.update(
                 instance,
-                serializer.validated_data
+                serializer.validated_data,
             )
-            return Response(data=['Проект обновлён успешно'], status=200)
-        return Response(data=['Введённые данные некорректны'], status=400)
+            return Response(data=[{'message': 'Проект обновлён успешно'}], status=200)
+        return Response(data=[{'errors': serializer.errors}], status=400)
 
 
 class DeleteProjectView(DestroyAPIView):
@@ -130,13 +173,14 @@ class TaskProjectView(ListAPIView):
 
     def get(self, request, *args, **kwargs):
         self.queryset = Task.objects.filter(project_id=kwargs['pk'])
-        return Response(data=self.get_data(request, kwargs['pk']))
+        return Response(data=self.get_data(request, kwargs['pk']), status=200)
 
     def post(self, request, pk):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            return Response(data=[{'errors': serializer.errors}], status=400)
         self.queryset = self.queryset.filter(deadline__range=(datetime.today(), serializer.validated_data['deadline']))
-        return Response(data=self.get_data(request, pk))
+        return Response(data=self.get_data(request, pk), status=200)
 
 
 class TasksView(ListAPIView):
@@ -157,7 +201,7 @@ class TasksView(ListAPIView):
     def get_data(self, request, pk=None):
         if pk is not None:
             serializer = TaskSerializer(self.queryset.filter(pk=pk).first(), context={'request': request})
-            return Response(data=serializer.data)
+            return Response(data=[serializer.data], status=200)
         else:
             return Response(
                 data=[
@@ -167,7 +211,8 @@ class TasksView(ListAPIView):
                             'request': request,
                         },
                     ).data for i in self.get_queryset()
-                ]
+                ],
+                status=200,
             )
 
 
@@ -176,10 +221,11 @@ class AddTaskView(CreateAPIView):
     serializer_class = TaskSerializer
 
     def post(self, request, *args, **kwargs):
-        ser = self.get_serializer(data=request.data, context={'request': request})
-        ser.is_valid(raise_exception=True)
-        ser.save()
-        return Response(data=['Задача создана успешно'], status=200)
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response(data=[{'errors': serializer.errors}], status=400)
+        serializer.save()
+        return Response(data=[{'message': 'Задача создана успешно'}], status=200)
 
 
 class UpdateTaskView(UpdateAPIView):
@@ -188,20 +234,36 @@ class UpdateTaskView(UpdateAPIView):
 
     def get(self, request, pk):
         return Response(
-            data=self.get_serializer(
-                instance=self.queryset.filter(
-                    pk=pk,
-                ).first(),
-                context={'request': request},
-            ).data,
+            data=[
+                self.get_serializer(
+                    instance=self.queryset.filter(
+                        pk=pk,
+                    ).first(),
+                    context={'request': request},
+                ).data,
+            ],
+            status=200,
         )
 
     def put(self, request, *args, **kwargs):
-        ser = self.get_serializer(data={**request.data, 'date_updated': datetime.today().date()},
-                                  context={'request': request})
-        ser.is_valid(raise_exception=True)
-        ser.update(self.queryset.filter(pk=kwargs['pk']).first(), ser.validated_data)
-        return Response(data=['Задача обновлена успешно'], status=200)
+        serializer = self.get_serializer(
+            data={
+                **request.data,
+                'date_updated': datetime.today().date(),
+            },
+            context={
+                'request': request,
+            }
+        )
+        if not serializer.is_valid():
+            return Response(data=[{'errors': serializer.errors}], status=400)
+        serializer.update(
+            self.queryset.filter(
+                pk=kwargs['pk'],
+            ).first(),
+            serializer.validated_data,
+        )
+        return Response(data=[{'message': 'Задача обновлена успешно'}], status=200)
 
 
 class DeleteTaskView(DestroyAPIView):
@@ -214,18 +276,18 @@ class RolesProjectView(UpdateAPIView):
     serializer_class = HiringSerializer
 
     def get(self, request, pk):
-        project_instance = Project.objects.filter(pk=pk).first()
-        instance = self.queryset.filter(
-            project=project_instance,
-        ).first()
-        serializer = self.get_serializer(instance, context={'request': request})
-        data = serializer.data
-        if not data['role_in_project']:
-            data['role_in_project'] = self.queryset.filter(
-                user=instance.user,
-                project=project_instance,
-            ).first().role_in_project
-        return Response(data=data)
+        instances = self.queryset.filter(project_id=pk)
+        return Response(
+            data=[
+                self.get_serializer(
+                    i,
+                    context={
+                        'request': request,
+                    },
+                ).data for i in instances
+            ],
+            status=200,
+        )
 
     def put(self, request, *args, **kwargs):
         data = {
@@ -234,15 +296,10 @@ class RolesProjectView(UpdateAPIView):
         }
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
-            hiring = self.queryset.filter(
-                project=Project.objects.filter(
-                    pk=kwargs['pk'],
-                ).first(),
-                user=serializer.validated_data['user'],
-            ).first()
+            hiring = self.queryset.filter(project_id=kwargs['pk'], user=serializer.validated_data['user']).first()
             serializer.update(hiring, serializer.validated_data)
-            return Response(data=['Роль задана успешно!'])
-        return super().put(request, *args, **kwargs)
+            return Response(data=[{'message': 'Роль задана успешно!'}], status=200)
+        return Response(data=[{'errors': serializer.errors}])
 
 
 class CommentsView(ListCreateAPIView):
@@ -250,15 +307,15 @@ class CommentsView(ListCreateAPIView):
     serializer_class = CommentSerializer
 
     def get(self, request, *args, **kwargs):
-        return Response([i.text for i in self.queryset.filter(task_id=kwargs['task_id'])])
+        return Response([i.text for i in self.queryset.filter(task_id=kwargs['task_id'])], status=200)
 
     def post(self, request, *args, **kwargs):
         data = {'text': request.data['text'], 'task': kwargs['task_id']}
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             serializer.save()
-            return Response(['Комментарий добавлен!'])
-        return Response(data=serializer.errors)
+            return Response([{'message': 'Комментарий добавлен!'}], status=200)
+        return Response(data=[{'errors': serializer.errors}], status=400)
 
 
 class DeleteCommentsView(DestroyAPIView):

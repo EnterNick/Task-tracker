@@ -1,7 +1,9 @@
 import json
 from datetime import datetime
 
+from django.conf import settings
 from django.contrib.auth.hashers import make_password
+from django.core.mail import send_mail
 from rest_framework.exceptions import ValidationError
 
 from .models import CustomUser, Project, Task, Hiring, Comment
@@ -19,7 +21,6 @@ class UserSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'avatar',
-            'role',
             'password',
             'email',
             'projects',
@@ -112,11 +113,33 @@ class ProjectSerializer(serializers.ModelSerializer):
             )
         ]
 
+    def get_fields(self):
+        fields = super().get_fields()
+        try:
+            if '/update' in self.context['request'].path:
+                for i in fields:
+                    fields[i].required = False
+            else:
+                for i in fields:
+                    fields[i].required = True
+        except KeyError:
+            pass
+        return fields
+
     def update(self, instance, validated_data):
         for i in validated_data['users']:
-            i.history = json.dumps([*json.loads(i.history), instance.title])
-            i.save()
+            if validated_data['title'] not in json.loads(i.history):
+                i.history = json.dumps([*json.loads(i.history), validated_data['title']])
+                # send_mail('sdfsfsdfs', 'dsfs', settings.EMAIL_HOST_USER, ['Ravil.Mirgayazov@yandex.ru'])
+                i.save()
         return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        for i in validated_data['users']:
+            if validated_data['title'] not in json.loads(i.history):
+                i.history = json.dumps([*json.loads(i.history), validated_data['title']])
+                i.save()
+        return super().create(validated_data)
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -157,12 +180,11 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def validate_title(self, attr):
         if Task.objects.filter(title=attr, project_id=self.context['request'].data['project'].split('/')[-1]):
-            raise ValidationError('Здача с таким названием уже существует')
+            raise ValidationError('Задача с таким названием уже существует')
         return attr
 
     def validate_executor(self, attr):
-        executor = CustomUser.objects.filter(pk=int(self.context['request'].data['executor'].split('/')[-1])).first()
-        if executor in Project.objects.first().users.all():
+        if attr in Project.objects.filter(pk=self.initial_data['project'].split('/')[-1]).first().users.all():
             return attr
         raise ValidationError('Этот пользователь не включён в проект')
 
@@ -172,6 +194,19 @@ class TaskSerializer(serializers.ModelSerializer):
         if tester in Project.objects.first().users.all():
             return f'{tester.first_name} {tester.email}'
         raise ValidationError('Этот пользователь не включён в проект')
+
+    def get_fields(self):
+        fields = super().get_fields()
+        try:
+            if '/update' in self.context['request'].path:
+                for i in fields:
+                    fields[i].required = False
+            else:
+                for i in fields:
+                    fields[i].required = True
+        except KeyError:
+            pass
+        return fields
 
 
 class HiringSerializer(serializers.ModelSerializer):
@@ -203,12 +238,12 @@ class HiringSerializer(serializers.ModelSerializer):
 class OrderBySerializer(serializers.Serializer):
     order_by = serializers.ChoiceField(
         choices=[
-            ('date_created', 'Дата создания (от старых к новым)'),
-            ('date_updated', 'Дата обновления (от старых к новым)'),
-            ('title', 'По названию (От А до Я)'),
+            ('date_created',  'Дата создания (от старых к новым)'),
+            ('date_updated',  'Дата обновления (от старых к новым)'),
+            ('title',         'По названию (От А до Я)'),
             ('-date_created', 'Дата создания (от новых к старым)'),
             ('-date_updated', 'Дата обновления (от новых к старым)'),
-            ('-title', 'По названию (От Я до А)'),
+            ('-title',        'По названию (От Я до А)'),
         ],
     )
 
@@ -216,12 +251,12 @@ class OrderBySerializer(serializers.Serializer):
 class SortProjectsSerializer(serializers.Serializer):
     order_by = serializers.ChoiceField(
         choices=[
-            ('-date_created', 'По дате создания'),
-            ('date_created', 'По дате cоздания (от старых к новым)'),
-            ('-date_updated', 'По дате обновления'),
-            ('date_updated', 'По дaте обновления (от старых к новым)'),
-            ('-title', 'По названию (От А до Я)'),
-            ('title', 'По названию (От Я до А)'),
+            ('-date_created',   'По дате создания'),
+            ('date_created',    'По дате cоздания (от старых к новым)'),
+            ('-date_updated',   'По дате обновления'),
+            ('date_updated',    'По дaте обновления (от старых к новым)'),
+            ('-title',          'По названию (От А до Я)'),
+            ('title',           'По названию (От Я до А)'),
         ],
     )
 
@@ -238,17 +273,24 @@ class FilterTasksSerializer(serializers.Serializer):
     )
     status = serializers.ChoiceField(
         choices=[
-            (None, 'Any'),
-            ('grooming', 'Grooming'),
+            (None,          'Any'),
+            ('grooming',    'Grooming'),
             ('in_progress', 'In Progress'),
-            ('dev', 'Dev'),
-            ('done', 'Done'),
+            ('dev',         'Dev'),
+            ('done',        'Done'),
         ]
     )
     executor_id = serializers.ChoiceField(
         choices=[
             (None, 'Any'),
-            *[(i.id, i.email) for i in CustomUser.objects.filter(is_staff=False)],
+            *[
+                (
+                    i.id,
+                    i.email,
+                ) for i in CustomUser.objects.filter(
+                    is_staff=False,
+                )
+            ],
         ]
     )
     sort_by = serializers.ChoiceField(
@@ -282,4 +324,4 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         pk = self.context['request'].__dict__['parser_context']['kwargs']['task_id']
-        return super().save(task=Task.objects.filter(pk=pk).first())
+        return super().save(task=Task.objects.filter(pk=pk).first(), task_id=pk)
