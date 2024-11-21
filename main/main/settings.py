@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-v!_$_+yyx1ok3cs7m9zk+(tyfl3w#0t=rl*f6sy6wjdn!$jaq&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -38,8 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'task_traker',
+    'websoket',
     'rest_framework',
     'rest_framework_simplejwt',
+    'daphne',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -70,7 +73,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'main.wsgi.application'
+ASGI_APPLICATION = 'main.asgi.application'
 
 
 # Database
@@ -158,3 +161,9 @@ EMAIL_HOST_USER = 'mirgaazovravil4@gmail.com'
 EMAIL_HOST_PASSWORD = 'efhn ooxc nblg tcwb'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}

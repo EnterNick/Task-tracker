@@ -4,6 +4,7 @@ from datetime import datetime
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
+from django.utils.datastructures import MultiValueDictKeyError
 from rest_framework.exceptions import ValidationError
 
 from .models import CustomUser, Project, Task, Hiring, Comment
@@ -151,7 +152,7 @@ class TaskSerializer(serializers.ModelSerializer):
         )
     )
     tester = serializers.ChoiceField(
-        choices=[(i.id, f'{i.first_name} {i.email}') for i in CustomUser.objects.filter(is_staff=False)]
+        choices=[(str(i.id), f'{i.first_name} {i.email}') for i in CustomUser.objects.filter(is_staff=False)]
     )
 
     class Meta:
@@ -179,7 +180,7 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
 
     def validate_title(self, attr):
-        if Task.objects.filter(title=attr, project_id=self.context['request'].data['project'].split('/')[-1]):
+        if Task.objects.filter(title=attr, project_id=self.initial_data['project'].split('/')[-1]):
             raise ValidationError('Задача с таким названием уже существует')
         return attr
 

@@ -23,6 +23,11 @@ from .serializers import (
     HiringSerializer
 )
 
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+
+from ..websoket.consumers import ChatConsumer
+
 
 class UserView(CreateAPIView):
     queryset = CustomUser.objects.filter(is_staff=False)
@@ -61,6 +66,9 @@ class ProjectView(ListAPIView):
         return queryset
 
     def get(self, request, pk=None, **kwargs):
+        channel = get_channel_layer()
+        async_to_sync(channel.group_send)('websoket', {'type': 'chat.message', 'message': 'aboba'})
+
         if pk is not None:
             serializer = ProjectSerializer(
                 self.queryset.filter(
@@ -246,9 +254,11 @@ class UpdateTaskView(UpdateAPIView):
         )
 
     def put(self, request, *args, **kwargs):
+        instance = self.queryset.filter(pk=kwargs['pk']).first()
         serializer = self.get_serializer(
             data={
-                **request.data,
+                'project': TaskSerializer(instance, context={'request': request}).data['project'],
+                **{i: request.data[i] for i in request.data},
                 'date_updated': datetime.today().date(),
             },
             context={
@@ -258,9 +268,7 @@ class UpdateTaskView(UpdateAPIView):
         if not serializer.is_valid():
             return Response(data=[{'errors': serializer.errors}], status=400)
         serializer.update(
-            self.queryset.filter(
-                pk=kwargs['pk'],
-            ).first(),
+            instance,
             serializer.validated_data,
         )
         return Response(data=[{'message': 'Задача обновлена успешно'}], status=200)
