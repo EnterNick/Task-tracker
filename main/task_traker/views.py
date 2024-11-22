@@ -17,84 +17,10 @@ from .serializers import (
     FilterProjectsTasksSerializer,
     CommentSerializer,
     FilterTasksSerializer,
-    UserSerializer,
     ProjectSerializer,
     TaskSerializer,
     HiringSerializer
 )
-
-from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
-
-from ..websoket.consumers import ChatConsumer
-
-
-class UserView(CreateAPIView):
-    queryset = CustomUser.objects.filter(is_staff=False)
-    serializer_class = UserSerializer
-
-
-class UserProfileView(ListAPIView):
-    serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
-    queryset = CustomUser.objects.filter(is_staff=False)
-
-    def get_object(self):
-        return self.request.user
-
-    def get(self, request, pk=None, **kwargs):
-        if pk is not None:
-            user = self.queryset.filter(pk=pk).first()
-            return Response(data=[self.get_serializer(user).data], status=200)
-        else:
-            return Response(
-                data=[
-                    self.get_serializer(
-                        user
-                    ).data for user in self.get_queryset()
-                ],
-                status=200,
-            )
-
-
-class ProjectView(ListAPIView):
-    queryset = Project.objects.all()
-    serializer_class = SortProjectsSerializer
-
-    def get_queryset(self):
-        queryset = self.queryset.filter(private=False)
-        return queryset
-
-    def get(self, request, pk=None, **kwargs):
-        channel = get_channel_layer()
-        async_to_sync(channel.group_send)('websoket', {'type': 'chat.message', 'message': 'aboba'})
-
-        if pk is not None:
-            serializer = ProjectSerializer(
-                self.queryset.filter(
-                    pk=pk,
-                ).first(),
-                context={
-                    'request': request,
-                },
-            )
-            return Response(data=[serializer.data], status=200)
-        else:
-            return Response(
-                data=[
-                    ProjectSerializer(
-                        i,
-                        context={
-                            'request': request,
-                        },
-                    ).data for i in self.get_queryset()
-                ],
-                status=200,
-            )
-
-    def post(self, request):
-        self.queryset = self.queryset.order_by(request.data['order_by'])
-        return self.get(request)
 
 
 class AddProjectView(CreateAPIView):
@@ -334,3 +260,41 @@ class DeleteCommentsView(DestroyAPIView):
 class UpdateCommentsView(UpdateAPIView):
     queryset = Comment.objects.all()
     serializer_class = CommentSerializer
+
+
+class ProjectView(ListAPIView):
+    queryset = Project.objects.all()
+    serializer_class = SortProjectsSerializer
+
+    def get_queryset(self):
+        queryset = self.queryset.filter(private=False)
+        return queryset
+
+    def get(self, request, pk=None, **kwargs):
+
+        if pk is not None:
+            serializer = ProjectSerializer(
+                self.queryset.filter(
+                    pk=pk,
+                ).first(),
+                context={
+                    'request': request,
+                },
+            )
+            return Response(data=[serializer.data], status=200)
+        else:
+            return Response(
+                data=[
+                    ProjectSerializer(
+                        i,
+                        context={
+                            'request': request,
+                        },
+                    ).data for i in self.get_queryset()
+                ],
+                status=200,
+            )
+
+    def post(self, request):
+        self.queryset = self.queryset.order_by(request.data['order_by'])
+        return self.get(request)

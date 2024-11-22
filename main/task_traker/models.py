@@ -1,31 +1,9 @@
 import datetime
 
+from django.contrib.auth import get_user_model
 from django.db import models
-from django.contrib.auth.models import AbstractUser
 
-
-def to_img_path(user, filename):
-    return f'user_{user.id}/{filename}'
-
-
-def deafult_history():
-    return '[]'
-
-
-class CustomUser(AbstractUser):
-    avatar = models.ImageField(
-        upload_to=to_img_path,
-        default='profile.png',
-    )
-
-    history = models.JSONField(default=deafult_history)
-    REQUIRED_FIELDS = [
-        'first_name',
-        'last_name',
-    ]
-
-    def __str__(self):
-        return f'{self.username}'
+CustomUser = get_user_model()
 
 
 class Project(models.Model):

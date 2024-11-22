@@ -1,66 +1,13 @@
 import json
 from datetime import datetime
 
-from django.conf import settings
-from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail
-from django.utils.datastructures import MultiValueDictKeyError
 from rest_framework.exceptions import ValidationError
 
 from .models import CustomUser, Project, Task, Hiring, Comment
 from rest_framework import serializers
 
-
-class UserSerializer(serializers.ModelSerializer):
-    projects = serializers.SerializerMethodField(read_only=True)
-    history = serializers.SerializerMethodField(read_only=True)
-    first_name = serializers.CharField(max_length=100, required=True)
-
-    class Meta:
-        model = CustomUser
-        fields = [
-            'first_name',
-            'last_name',
-            'avatar',
-            'password',
-            'email',
-            'projects',
-            'history',
-        ]
-        required_fields = [
-            'email',
-        ]
-        extra_kwargs = {
-            'password': {
-                'write_only': True,
-            },
-        }
-
-    def save(self, **kwargs):
-        return super().save(
-            **kwargs,
-            username=self.validated_data['email'],
-        )
-
-    @staticmethod
-    def get_history(obj):
-        return json.loads(obj.history)
-
-    @staticmethod
-    def get_projects(obj):
-        return {i.project.title: i.role_in_project for i in Hiring.objects.filter(user_id=obj.id)}
-
-    @staticmethod
-    def validate_email(attr):
-        if not CustomUser.objects.filter(email=attr):
-            return attr
-        raise ValidationError('User is already exists! Please, try log in.')
-
-    @staticmethod
-    def validate_password(value: str) -> str:
-        if not value or value is None:
-            raise ValidationError('Password is required!')
-        return make_password(value)
+from main import settings
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -129,16 +76,29 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         for i in validated_data['users']:
-            if validated_data['title'] not in json.loads(i.history):
-                i.history = json.dumps([*json.loads(i.history), validated_data['title']])
-                # send_mail('sdfsfsdfs', 'dsfs', settings.EMAIL_HOST_USER, ['Ravil.Mirgayazov@yandex.ru'])
+            title = validated_data.get('title', instance.title)
+            if title not in json.loads(i.history):
+                i.history = json.dumps([*json.loads(i.history), title])
+                send_mail(
+                    'Оповщения о включении в проект',
+                    f'Вас включили в проект {title} в {datetime.today().strftime('%d-%m-%Y %H:%M')} по МСК',
+                    settings.EMAIL_HOST_USER,
+                    ['Ravil.Mirgayazov@yandex.ru']
+                )
                 i.save()
         return super().update(instance, validated_data)
 
     def create(self, validated_data):
         for i in validated_data['users']:
-            if validated_data['title'] not in json.loads(i.history):
-                i.history = json.dumps([*json.loads(i.history), validated_data['title']])
+            title = validated_data.get('title')
+            if title not in json.loads(i.history):
+                i.history = json.dumps([*json.loads(i.history), title])
+                send_mail(
+                    'Оповщения о включении в проект',
+                    f'Вас включили в проект {title} в {datetime.today().strftime('%d-%m-%Y %H:%M')} по МСК',
+                    settings.EMAIL_HOST_USER,
+                    ['Ravil.Mirgayazov@yandex.ru']
+                )
                 i.save()
         return super().create(validated_data)
 
