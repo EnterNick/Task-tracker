@@ -1,10 +1,10 @@
-from django.urls import path
+from django.urls import re_path
 
 from . import views
 
 urlpatterns = [
-    path('register', views.UserView.as_view()),
+    re_path('^register/$', views.UserView.as_view(), name='registration'),
 
-    path('profile/', views.UserProfileView.as_view()),
-    path('profile/<int:pk>', views.UserProfileView.as_view(), name='users'),
+    re_path(r'^profile/(?P<pk>\d+)$', views.UserProfileView.as_view(), name='users'),
+    re_path('^profile/&', views.UserProfileView.as_view()),
 ]

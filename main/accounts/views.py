@@ -12,6 +12,30 @@ class UserView(CreateAPIView):
 
 
 class UserProfileView(ListAPIView):
+    """
+    
+    `UserProfileView` — представление на основе `ListAPIView`, предоставляющее API для получения профилей
+    пользователей, не являющихся администраторами (`is_staff=False`).
+    
+    Атрибуты класса
+    
+    - serializer_class: `UserSerializer` — сериализатор для преобразования объектов `CustomUser` в JSON.
+    - permission_classes: `[IsAuthenticated]` — доступ только для аутентифицированных пользователей.
+    - queryset: Фильтрует пользователей, исключая администраторов.
+    
+    Методы класса
+    
+    `get_object()`
+    
+    Возвращает текущего аутентифицированного пользователя.
+    
+    `get(request, pk=None, kwargs)`
+    
+    Обрабатывает GET-запросы:
+    
+    - Если `pk` указан, возвращает данные пользователя с этим первичным ключом.
+    - Если `pk` не указан, возвращает список всех пользователей.
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     queryset = CustomUser.objects.filter(is_staff=False)

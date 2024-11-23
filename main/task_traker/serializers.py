@@ -112,7 +112,7 @@ class TaskSerializer(serializers.ModelSerializer):
         )
     )
     tester = serializers.ChoiceField(
-        choices=[(str(i.id), f'{i.first_name} {i.email}') for i in CustomUser.objects.filter(is_staff=False)]
+        choices=[(str(i.id), f'{i.first_name} {i.email}') for i in CustomUser.objects.all()], required=False
     )
 
     class Meta:
@@ -135,7 +135,6 @@ class TaskSerializer(serializers.ModelSerializer):
         ]
         required_fields = [
             'project',
-            'tester',
             'deadline',
         ]
 
@@ -164,7 +163,8 @@ class TaskSerializer(serializers.ModelSerializer):
                     fields[i].required = False
             else:
                 for i in fields:
-                    fields[i].required = True
+                    if i != 'tester':
+                        fields[i].required = True
         except KeyError:
             pass
         return fields
@@ -187,12 +187,15 @@ class HiringSerializer(serializers.ModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        pk = self.context['request'].__dict__['parser_context']['kwargs']['pk']
-        fields['user'].queryset = fields['user'].queryset.filter(
-            project=Project.objects.filter(
-                pk=pk,
-            ).first(),
-        )
+        try:
+            pk = self.context['request'].__dict__['parser_context']['kwargs']['pk']
+            fields['user'].queryset = fields['user'].queryset.filter(
+                project=Project.objects.filter(
+                    pk=pk,
+                ).first(),
+            )
+        except KeyError:
+            pass
         return fields
 
 

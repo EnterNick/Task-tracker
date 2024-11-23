@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
+SETTINGS_PATH = os.path.dirname(os.path.dirname(__file__))
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 
@@ -41,7 +42,10 @@ ROOT_URLCONF = 'main.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            '',
+            os.path.join(SETTINGS_PATH, 'main/templates'),
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -57,18 +61,18 @@ TEMPLATES = [
 ASGI_APPLICATION = 'main.asgi.application'
 
 DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('ENVIROMENT_ENGINE'),
-        'NAME': os.getenv('POSTGRES_NAME'),
-        "PASSWORD": os.getenv('POSTGRES_PASSWORD'),
-        "HOST": os.getenv('POSTGRES_HOST'),
-        "PORT": os.getenv('POSTGRES_PORT'),
-        "USER": os.getenv('POSTGRES_USER'),
-    }
     # 'default': {
-    #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': BASE_DIR / 'db.sqlite3',
+    #     'ENGINE': os.getenv('ENVIROMENT_ENGINE'),
+    #     'NAME': os.getenv('POSTGRES_NAME'),
+    #     "PASSWORD": os.getenv('POSTGRES_PASSWORD'),
+    #     "HOST": os.getenv('POSTGRES_HOST'),
+    #     "PORT": os.getenv('POSTGRES_PORT'),
+    #     "USER": os.getenv('POSTGRES_USER'),
     # }
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3'
+    }
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -129,3 +133,5 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
+
+DJANGO_SETTINGS_MODULE = BASE_DIR / 'main/setting.py'

@@ -79,7 +79,7 @@ class Task(models.Model):
         max_length=100,
     )
     deadline = models.DateTimeField(default=datetime.datetime.today)
-    tester = models.CharField(max_length=1000, null=True)
+    tester = models.CharField(max_length=1000, null=True, blank=True)
 
     def __str__(self):
         return f'{self.title} - {self.description}'
