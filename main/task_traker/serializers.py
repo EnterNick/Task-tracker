@@ -3,11 +3,17 @@ from datetime import datetime
 
 from django.core.mail import send_mail
 from rest_framework.exceptions import ValidationError
+from websocket import create_connection
 
 from .models import CustomUser, Project, Task, Hiring, Comment
 from rest_framework import serializers
 
 from main import settings
+
+
+def send_message(pk, message):
+    ws = create_connection(f"ws://127.0.0.1:8001/ws/msg/{pk}/")
+    ws.send(json.dumps({'message': message}))
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -85,6 +91,7 @@ class ProjectSerializer(serializers.ModelSerializer):
                     settings.EMAIL_HOST_USER,
                     ['Ravil.Mirgayazov@yandex.ru']
                 )
+                send_message(i.id, 'Вас добавили в новый проект')
                 i.save()
         return super().update(instance, validated_data)
 
@@ -138,6 +145,18 @@ class TaskSerializer(serializers.ModelSerializer):
             'deadline',
         ]
 
+    def update(self, instance, validated_data):
+        try:
+            if instance.status != validated_data['status']:
+                obj = super().update(instance, validated_data)
+                send_message(
+                    instance.id,
+                    f'Статус вашей задачи {instance.title} изменён на {validated_data['sttatus']}'
+                )
+                return obj
+        except KeyError:
+            return super().update(instance, validated_data)
+
     def validate_title(self, attr):
         if Task.objects.filter(title=attr, project_id=self.initial_data['project'].split('/')[-1]):
             raise ValidationError('Задача с таким названием уже существует')
@@ -145,6 +164,10 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def validate_executor(self, attr):
         if attr in Project.objects.filter(pk=self.initial_data['project'].split('/')[-1]).first().users.all():
+            send_message(
+                CustomUser.objects.filter(email=attr).first().id,
+                'Вы были назначены ответственным за выполнение задачи'
+            )
             return attr
         raise ValidationError('Этот пользователь не включён в проект')
 
@@ -202,12 +225,12 @@ class HiringSerializer(serializers.ModelSerializer):
 class OrderBySerializer(serializers.Serializer):
     order_by = serializers.ChoiceField(
         choices=[
-            ('date_created',  'Дата создания (от старых к новым)'),
-            ('date_updated',  'Дата обновления (от старых к новым)'),
-            ('title',         'По названию (От А до Я)'),
+            ('date_created', 'Дата создания (от старых к новым)'),
+            ('date_updated', 'Дата обновления (от старых к новым)'),
+            ('title', 'По названию (От А до Я)'),
             ('-date_created', 'Дата создания (от новых к старым)'),
             ('-date_updated', 'Дата обновления (от новых к старым)'),
-            ('-title',        'По названию (От Я до А)'),
+            ('-title', 'По названию (От Я до А)'),
         ],
     )
 
@@ -215,12 +238,12 @@ class OrderBySerializer(serializers.Serializer):
 class SortProjectsSerializer(serializers.Serializer):
     order_by = serializers.ChoiceField(
         choices=[
-            ('-date_created',   'По дате создания'),
-            ('date_created',    'По дате cоздания (от старых к новым)'),
-            ('-date_updated',   'По дате обновления'),
-            ('date_updated',    'По дaте обновления (от старых к новым)'),
-            ('-title',          'По названию (От А до Я)'),
-            ('title',           'По названию (От Я до А)'),
+            ('-date_created', 'По дате создания'),
+            ('date_created', 'По дате cоздания (от старых к новым)'),
+            ('-date_updated', 'По дате обновления'),
+            ('date_updated', 'По дaте обновления (от старых к новым)'),
+            ('-title', 'По названию (От А до Я)'),
+            ('title', 'По названию (От Я до А)'),
         ],
     )
 
@@ -237,11 +260,11 @@ class FilterTasksSerializer(serializers.Serializer):
     )
     status = serializers.ChoiceField(
         choices=[
-            (None,          'Any'),
-            ('grooming',    'Grooming'),
+            (None, 'Any'),
+            ('grooming', 'Grooming'),
             ('in_progress', 'In Progress'),
-            ('dev',         'Dev'),
-            ('done',        'Done'),
+            ('dev', 'Dev'),
+            ('done', 'Done'),
         ]
     )
     executor_id = serializers.ChoiceField(
@@ -288,4 +311,6 @@ class CommentSerializer(serializers.ModelSerializer):
 
     def save(self, **kwargs):
         pk = self.context['request'].__dict__['parser_context']['kwargs']['task_id']
-        return super().save(task=Task.objects.filter(pk=pk).first(), task_id=pk)
+        task_instance = Task.objects.filter(pk=pk).first()
+        send_message(task_instance.executor_id, 'К вашей задаче добавлен комментарий')
+        return super().save(task=task_instance, task_id=pk)

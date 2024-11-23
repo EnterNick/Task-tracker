@@ -61,17 +61,13 @@ TEMPLATES = [
 ASGI_APPLICATION = 'main.asgi.application'
 
 DATABASES = {
-    # 'default': {
-    #     'ENGINE': os.getenv('ENVIROMENT_ENGINE'),
-    #     'NAME': os.getenv('POSTGRES_NAME'),
-    #     "PASSWORD": os.getenv('POSTGRES_PASSWORD'),
-    #     "HOST": os.getenv('POSTGRES_HOST'),
-    #     "PORT": os.getenv('POSTGRES_PORT'),
-    #     "USER": os.getenv('POSTGRES_USER'),
-    # }
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3'
+        'ENGINE': os.getenv('ENVIROMENT_ENGINE'),
+        'NAME': os.getenv('POSTGRES_NAME'),
+        "PASSWORD": os.getenv('POSTGRES_PASSWORD'),
+        "HOST": os.getenv('POSTGRES_HOST'),
+        "PORT": os.getenv('POSTGRES_PORT'),
+        "USER": os.getenv('POSTGRES_USER'),
     }
 }
 
