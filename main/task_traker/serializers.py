@@ -1,7 +1,10 @@
 import json
+from collections import Counter
 from datetime import datetime
+from smtplib import SMTPSenderRefused
 
 from django.core.mail import send_mail
+from django.db.utils import ProgrammingError, OperationalError
 from rest_framework.exceptions import ValidationError
 from websocket import create_connection
 
@@ -12,8 +15,11 @@ from main import settings
 
 
 def send_message(pk, message):
-    ws = create_connection(f"ws://127.0.0.1:8001/ws/msg/{pk}/")
-    ws.send(json.dumps({'message': message}))
+    try:
+        ws = create_connection(f"ws://127.0.0.1:8001/ws/msg/{pk}/")
+        ws.send(json.dumps({'message': message}))
+    except ConnectionRefusedError:
+        pass
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -25,6 +31,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         write_only=True
     )
     user_roles = serializers.SerializerMethodField(read_only=True)
+    statistic = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Project
@@ -37,7 +44,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             'private',
             'tasks',
             'users',
-            'user_roles'
+            'user_roles',
+            'statistic',
         ]
         read_only_fields = [
             'date_created',
@@ -48,6 +56,23 @@ class ProjectSerializer(serializers.ModelSerializer):
                 'write_only': True,
             },
         }
+
+    @staticmethod
+    def get_statistic(obj):
+        tasks = Task.objects.filter(project_id=obj.id)
+        statistics = {
+            'value_tasks': len(tasks),
+            'deadline_tasks': [i.title for i in tasks if datetime.today().day - i.deadline.day <= 3]
+        }
+        statistics['statuses'] = {
+            i: f'{round(n / statistics["value_tasks"] * 100, 2)}%' for i, n in Counter(
+                [
+                    i.status for i in tasks
+                ]
+            ).items()
+        }
+
+        return statistics
 
     def get_tasks(self, obj):
         return [
@@ -85,29 +110,21 @@ class ProjectSerializer(serializers.ModelSerializer):
             title = validated_data.get('title', instance.title)
             if title not in json.loads(i.history):
                 i.history = json.dumps([*json.loads(i.history), title])
-                send_mail(
-                    'Оповщения о включении в проект',
-                    f'Вас включили в проект {title} в {datetime.today().strftime('%d-%m-%Y %H:%M')} по МСК',
-                    settings.EMAIL_HOST_USER,
-                    ['Ravil.Mirgayazov@yandex.ru']
-                )
+                try:
+                    send_mail(
+                        'Оповщения о включении в проект',
+                        f'Вас включили в проект {title} в {datetime.today().strftime("%d-%m-%Y %H:%M")} по МСК',
+                        settings.EMAIL_HOST_USER,
+                        ['Ravil.Mirgayazov@yandex.ru']
+                    )
+                except SMTPSenderRefused:
+                    pass
                 send_message(i.id, 'Вас добавили в новый проект')
                 i.save()
         return super().update(instance, validated_data)
 
     def create(self, validated_data):
-        for i in validated_data['users']:
-            title = validated_data.get('title')
-            if title not in json.loads(i.history):
-                i.history = json.dumps([*json.loads(i.history), title])
-                send_mail(
-                    'Оповщения о включении в проект',
-                    f'Вас включили в проект {title} в {datetime.today().strftime('%d-%m-%Y %H:%M')} по МСК',
-                    settings.EMAIL_HOST_USER,
-                    ['Ravil.Mirgayazov@yandex.ru']
-                )
-                i.save()
-        return super().create(validated_data)
+        return self.update(super().create(validated_data), validated_data)
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -118,9 +135,15 @@ class TaskSerializer(serializers.ModelSerializer):
             is_staff=False,
         )
     )
-    tester = serializers.ChoiceField(
-        choices=[(str(i.id), f'{i.first_name} {i.email}') for i in CustomUser.objects.all()], required=False
-    )
+
+    try:
+        tester = serializers.ChoiceField(
+            choices=[(str(i.id), f'{i.first_name} {i.email}') for i in CustomUser.objects.all()], required=False
+        )
+    except OperationalError:
+        pass
+    except ProgrammingError:
+        pass
 
     class Meta:
         model = Task
@@ -151,7 +174,7 @@ class TaskSerializer(serializers.ModelSerializer):
                 obj = super().update(instance, validated_data)
                 send_message(
                     instance.id,
-                    f'Статус вашей задачи {instance.title} изменён на {validated_data['sttatus']}'
+                    f'Статус вашей задачи {instance.title} изменён на {validated_data["sttatus"]}'
                 )
                 return obj
         except KeyError:
@@ -267,19 +290,25 @@ class FilterTasksSerializer(serializers.Serializer):
             ('done', 'Done'),
         ]
     )
-    executor_id = serializers.ChoiceField(
-        choices=[
-            (None, 'Any'),
-            *[
-                (
-                    i.id,
-                    i.email,
-                ) for i in CustomUser.objects.filter(
-                    is_staff=False,
-                )
-            ],
-        ]
-    )
+    try:
+        executor_id = serializers.ChoiceField(
+            choices=[
+                (None, 'Any'),
+                *[
+                    (
+                        i.id,
+                        i.email,
+                    ) for i in CustomUser.objects.filter(
+                        is_staff=False,
+                    )
+                ],
+            ]
+        )
+    except OperationalError:
+        pass
+    except ProgrammingError:
+        pass
+
     sort_by = serializers.ChoiceField(
         choices=[
             ('-date_created', 'По дате создания'),
